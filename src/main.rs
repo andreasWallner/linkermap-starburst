@@ -101,7 +101,7 @@ pub struct Symbol {
     pub filename: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hierarchy {
     pub name: String,
     pub symbols: Vec<Symbol>,
@@ -258,11 +258,7 @@ pub fn unescape_name(name: &String) -> String {
 }
 
 fn parse_file(file: File) -> Result<Hierarchy> {
-    let mut tree = Hierarchy {
-        name: "".to_owned(),
-        symbols: vec![],
-        sublevels: HashMap::new(),
-    };
+    let mut tree = Hierarchy::default();
     let mut filename = "".to_owned();
     let mut section = "".to_owned();
     let mut result = vec![];
