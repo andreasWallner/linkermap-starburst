@@ -37,11 +37,7 @@ pub enum Data {
     Empty,
 }
 
-fn parse(r: std::result::Result<String, std::io::Error>) -> Line {
-    let Ok(s) = r else {
-        panic!("Error: {:?}", r);
-    };
-
+fn parse(s: String) -> Line {
     if s.trim_start_matches(' ').starts_with("VMA") {
         return Line::Headline;
     }
@@ -262,7 +258,13 @@ fn parse_file(file: File) -> Result<Hierarchy> {
     let mut filename = "".to_owned();
     let mut section = "".to_owned();
     let mut result = vec![];
-    for l in io::BufReader::new(file).lines().map(parse) {
+
+    let lines = io::BufReader::new(file)
+        .lines()
+        .map(|l| l.map(parse))
+        .collect::<std::result::Result<Vec<Line>, _>>()?;
+
+    for l in lines {
         match l {
             Line::AddressedSymbol(Addressed {
                 entry: Data::Section(s),
