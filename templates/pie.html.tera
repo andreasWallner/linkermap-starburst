@@ -68,12 +68,19 @@
     #percentage {
       font-size: 2.5em;
     }
+    
+    #info {
+      position: absolute;
+      top: 3em;
+      left: 3em;
+      font-size: 1.5em;
+    }
   </style>
 </head>
 
 <body>
   <div id="main">
-    <div id="sequence"></div>
+    <div id="info" style="position:absolute; top: 3em; left: 3em"></div>
     <div id="chart">
       <div id="explanation" style="visibility: hidden;">
         <span id="percentage"></span><br />
@@ -100,9 +107,6 @@
     // https://d3js.org/d3-hierarchy/partition#partition
     var partition = d3.partition()
       .size([2 * Math.PI, root.height + 1])(root);
-
-
-    console.log(root)
 
     // Dimensions of sunburst.
     const width = 1280;
@@ -135,7 +139,48 @@
       .attr("fill", d => { while (d.depth > 1) d = d.parent; return color(d.data.name); })
       .attr("fill-opacity", d => arcVisible(d.current) ? (d.children ? 0.6 : 0.4) : 1.0)
       .attr("pointer-events", d => arcVisible(d.current) ? "auto" : "none")
-      .attr("d", d => arc(d.current));
+      .attr("d", d => arc(d.current))
+      .on("mouseenter", (event, d) => {
+        var modules = [];
+        var impl = null;
+        d.ancestors().slice(1).reverse().forEach((d, i) => {
+          if (d.data.name.startsWith("_<") && d.data.name.endsWith(">")) {
+            impl = d.data.name;
+          } else {
+            if (impl != null) {
+              console.log("something went wrong, trying to fix detected impl in: " + d.ancestors().map((d, i) => d.data.name).join("::"));
+              modules.push(impl);
+              impl = null;
+            }
+            modules.push(d.data.name);
+          }
+        });
+
+        d3.select("#info").selectAll("p").remove();
+        const info_p = d3.select("#info").append("p");
+        info_p.append("b").text("Module: ");
+        info_p.append("span").text(modules.join("::"));
+        info_p.append("br");
+
+        if (impl != null) {
+          impl = impl.slice(2, impl.length - 1).split(" as ").reverse().join(" for ");
+          info_p.append("b").text("Impl: ");
+          info_p.append("span").text(impl);
+          info_p.append("br");
+        }
+
+        var item = d.data.name;
+        if (item.startsWith("_<") && item.endsWith(">")) {
+          item = "impl " + item.slice(2, item.length - 1).split(" as ").reverse().join(" for ");
+        }
+        info_p.append("b").text("Item: ");
+        info_p.append("span").text(item);
+        info_p.append("br");
+
+        info_p.append("b").text("Size: ");
+        info_p.append("span").text(d.value + " byte");
+        info_p.append("br");
+      });
 
     // Make them clickable if they have children.
     path.filter(d => d.children)
