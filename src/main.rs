@@ -290,8 +290,8 @@ fn parse_file(file: File) -> Result<Hierarchy> {
                     lma,
                     size,
                     align,
-                    module: module,
-                    name: name,
+                    module,
+                    name,
                     section: section.clone(),
                     filename: filename.clone(),
                 };
