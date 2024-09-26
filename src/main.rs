@@ -341,9 +341,9 @@ fn visualize(filename: &str) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    if std::env::args().len() != 2 {
-        eprintln!("Must be called with only the map file as parameter");
-        std::process::exit(-1);
-    }
-    visualize(&std::env::args().nth(1).unwrap())
+    let Some(map_file) = std::env::args().nth(1) else {
+        return Err(eyre!("Usage: linkermap-starburst <map_file>"));
+    };
+
+    visualize(&map_file)
 }
