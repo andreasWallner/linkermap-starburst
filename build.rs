@@ -1,3 +1,3 @@
 fn main() {
-    println!("cargo::rerun-if-changed=templates/pie.html")
+    println!("cargo::rerun-if-changed=templates/pie.html.tera")
 }
