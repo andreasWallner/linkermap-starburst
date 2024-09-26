@@ -311,14 +311,14 @@ fn parse_file(file: File) -> Result<Hierarchy> {
     Ok(tree)
 }
 
-fn generate_plot(section: &Hierarchy, target_filename: &str) {
+fn generate_plot(section: &Hierarchy, target_filename: &str) -> Result<()> {
     // TODO root node name
-    let file = File::create(target_filename).unwrap();
+    let file = File::create(target_filename)?;
     let writer = io::BufWriter::new(file);
 
     let mut tera = Tera::default();
-    tera.add_raw_template("pie", include_str!("../templates/pie.html.tera"))
-        .unwrap();
+    tera.add_raw_template("pie", include_str!("../templates/pie.html.tera"))?;
+
     let mut context = Context::new();
     context.insert("sections", section);
     context.insert("title", "TODO");
@@ -326,9 +326,11 @@ fn generate_plot(section: &Hierarchy, target_filename: &str) {
     let mut string: Vec<u8> = Vec::new();
     //let string_writer = io::BufWriter::new(string);
     serialize(section, &mut string);
-    context.insert("serialized", &String::from_utf8(string).unwrap());
+    context.insert("serialized", &String::from_utf8(string)?);
 
-    tera.render_to("pie", &context, writer).unwrap();
+    tera.render_to("pie", &context, writer)?;
+
+    Ok(())
 }
 
 fn visualize(filename: &str) -> Result<()> {
@@ -336,7 +338,7 @@ fn visualize(filename: &str) -> Result<()> {
 
     let tree = parse_file(file)?;
     //println!("{:#?}", tree);
-    generate_plot(&tree, "pie.html");
+    generate_plot(&tree, "pie.html")?;
 
     Ok(())
 }
