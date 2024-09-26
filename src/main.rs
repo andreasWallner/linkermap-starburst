@@ -177,15 +177,59 @@ where
     }
 }
 
+pub fn find_closing_bracket(text: &str, start: usize) -> Option<usize> {
+    match text.chars().nth(start) {
+        Some('<') => (),
+        _ => return None,
+    }
+
+    let mut additional_open_brackets = 0;
+
+    for (n, c) in text[start + 1..].char_indices() {
+        match c {
+            '<' => additional_open_brackets += 1,
+            '>' if additional_open_brackets == 0 => return Some(n + start + 1),
+            '>' => additional_open_brackets -= 1,
+            _ => (),
+        }
+    }
+    None
+}
+
 pub fn split_name(n: &str) -> (Vec<String>, String) {
-    let parts = n.split("::").collect::<Vec<_>>();
-    if let [module @ .., name, _hash] = &parts[..] {
-        (
-            module.iter().map(|&s| s.to_owned()).collect(),
-            (*name).to_owned(),
-        )
+    if n.starts_with("_<") {
+        // the impl of an interface...
+        // e.g. _<nci::messages::Command as core::convert::TryFrom<(u16,&[u8])>>::try_from::h1321c64737577399
+
+        let closing_index = find_closing_bracket(n, 1)
+            .unwrap_or_else(|| panic!("Name with unexpected shape, no closing: {}", n));
+        let imp = &n[2..closing_index];
+        let impl_pieces = imp.split(" as ").collect::<Vec<_>>();
+        assert!(
+            impl_pieces.len() == 2,
+            "Name with unexpected shape, too few pieces: {}",
+            n
+        );
+
+        let module = impl_pieces[0].split("::").map(|s| s.to_owned()).collect();
+
+        let func = &n[closing_index + 1..];
+        let func_pieces = func.split("::").collect::<Vec<_>>();
+
+        (module, impl_pieces[1].to_owned() + "::" + func_pieces[1])
     } else {
-        (Vec::new(), n.to_owned())
+        // normal symbol
+        // e.g. nci::comm::packets::Packetizer::get_mut::panic_cold_explicit::h84576c2c34ef900f
+
+        let parts = n.split("::").collect::<Vec<_>>();
+        if let [module @ .., name, _hash] = &parts[..] {
+            (
+                module.iter().map(|&s| s.to_owned()).collect(),
+                (*name).to_owned(),
+            )
+        } else {
+            (Vec::new(), n.to_owned())
+        }
     }
 }
 
@@ -208,6 +252,7 @@ pub fn unescape_name(name: &String) -> String {
         .replace("$u7d$", "}")
         .replace("$u5b$", "[")
         .replace("$u5d$", "]")
+        .replace("$u3b$", ";")
         .replace("$C$", ",")
         .replace("$RF$", "&")
 }
@@ -242,14 +287,15 @@ fn parse_file(file: File) -> Result<Hierarchy> {
                     // ignore local symbols
                     continue;
                 }
-                let (module, name) = split_name(id);
+                let (module, name) = split_name(&unescape_name(id));
+                dbg!(&module, &name);
                 let symbol = Symbol {
                     vma,
                     lma,
                     size,
                     align,
-                    module: module.iter().map(unescape_name).collect(),
-                    name: unescape_name(&name),
+                    module: module,
+                    name: name,
                     section: section.clone(),
                     filename: filename.clone(),
                 };
@@ -286,7 +332,7 @@ fn visualize(filename: &str) -> Result<()> {
     let file = File::open(filename)?;
 
     let tree = parse_file(file)?;
-    println!("{:#?}", tree);
+    //println!("{:#?}", tree);
     generate_plot(&tree, "pie.html");
 
     Ok(())
