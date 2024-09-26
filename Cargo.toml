@@ -1,0 +1,10 @@
+[package]
+name = "linkermap-visualize"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+regex="1.10"
+tera="1.20"
+serde={ version="1.0", features = ["derive","rc"] }
+eyre = "0.6.12"

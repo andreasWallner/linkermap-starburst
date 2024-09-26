@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+
+<head>
+  <meta charset="utf-8">
+  </meta>
+  <title>Firmware memory layout: {{title}}</title>
+  <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans:400,600">
+  <style>
+    body {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 10px;
+      font-weight: 400;
+      background-color: #fff;
+      width: 960px;
+      height: 700px;
+      margin-top: 10px;
+    }
+
+    #main {
+      float: left;
+      width: 750px;
+    }
+
+    #footer {
+      float: left;
+      width: 750px;
+    }
+
+    #sidebar {
+      float: right;
+      width: 100px;
+    }
+
+    #sequence {
+      width: 600px;
+      height: 70px;
+    }
+
+    #legend {
+      padding: 50px 0 0 3px;
+    }
+
+    #sequence text,
+    #legend text,
+    #footer text {
+      font-weight: 600;
+      fill: #fff;
+    }
+
+    #chart {
+      position: relative;
+    }
+
+    #chart path {
+      stroke: #fff;
+    }
+
+    #explanation {
+      position: absolute;
+      top: 360px;
+      left: 570px;
+      width: 140px;
+      text-align: center;
+      color: #666;
+      z-index: -1;
+    }
+
+    #percentage {
+      font-size: 2.5em;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="main">
+    <div id="sequence"></div>
+    <div id="chart">
+      <div id="explanation" style="visibility: hidden;">
+        <span id="percentage"></span><br />
+        bytes in <span id="percentage_desc"></span>
+      </div>
+    </div>
+  </div>
+  <div id="sidebar">
+    <div id="legend"></div>
+    Mouseover or click on the round segment diagram.
+  </div>
+
+  <script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+    const data = { {{ serialized }} };
+    const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+    
+    // https://d3js.org/d3-hierarchy/hierarchy#hierarchy
+    const root = d3.hierarchy(data)
+      .sum(d => d.size)
+      .sort((a, b) => b.size - a.size);
+    root.each(d => d.current = d);
+    // https://d3js.org/d3-hierarchy/partition#partition
+    var partition = d3.partition()
+      .size([2 * Math.PI, root.height + 1])(root);
+
+
+    console.log(root)
+
+    // Dimensions of sunburst.
+    var width = 1280;
+    var height = 800;
+    var radius = Math.min(width, height) / 2.5;
+
+    // Breadcrumb dimensions: width, height, spacing, width of tip/tail.
+    var b = { w: 100, h: 30, s: 3, t: 10 };
+
+    const arc = d3.arc()
+      .startAngle(d => d.x0)
+      .endAngle(d => d.x1)
+      .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
+      .padRadius(radius * 1.5)
+      .innerRadius(d => d.y0 * radius)
+      .innerRadius(d => Math.max(d.y0 * radius, d.y1 * radius - 1))
+
+    const svg = d3.select("#chart")
+      .append("svg:svg")
+      .attr("viewBox", [-width / 2, -height / 2, width, width])
+      .style("font", "10px sans-serif");
+
+    const path = svg.append("g")
+      .selectAll("path")
+      .data(root)
+      .join("path")
+      .attr("fill", d => { while (d.depth > 1) d = d.parent; return color(d.data.name); })
+      .attr("fill-opacity", d => arcVisible(d.current) ? (d.children ? 0.6 : 0.4) : 0)
+      .attr("pointer-events", d => arcVisible(d.current) ? "auto" : "none")
+      .attr("d", d => arc(d.current));
+
+    function arcVisible(d) {
+      return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
+    }
+
+    function labelVisible(d) {
+      return d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
+    }
+
+    function labelTransform(d) {
+      const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+      const y = (d.y0 + d.y1) / 2 * radius;
+      return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+    }
+
+    // Dimensions of sunburst.
+    var width = 1280;
+    var height = 800;
+    var radius = Math.min(width, height) / 2.5;
+
+    // Breadcrumb dimensions: width, height, spacing, width of tip/tail.
+    var b = {
+      w: 100, h: 30, s: 3, t: 10
+    };
+
+    // Mapping of step names to colors.
+    var colors = {
+      ".text": "#5687d1",
+      ".bss": "#6ab975",
+      ".ER_TFM_CODE": "#7b615c",
+      ".TFM_BSS": "#de783b",
+    };
+    //const colors = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+
+    // Total size of all segments; we set this later, after loading the data.
+    var totalSize = 0;
+
+    var vis = d3.select("#chart").append("svg:svg")
+      .attr("width", width)
+      .attr("height", height)
+      .append("svg:g")
+      .attr("id", "container")
+      .attr("transform", "translate(" + width / 2 + ", " + height / 2 + ")");
+
+    var partition = d3.layout.partition()
+      .size([2 * Math.PI, radius * radius])
+      .value(function (d) { return d.size });
+
+    var arc = d3.svg.arc()
+      .startAngle(function (d) { return d.x; })
+      .endAngle(function (d) { return d.x + d.dx; })
+      .innerRadius(function (d) { return Math.sqrt(d.y); })
+      .outerRadius(function (d) { return Math.sqrt(d.y + d.y); });
+
+    update_chart();
+
+    function update_chart() {
+      // Basic setup of page elements.
+      initializeBreadcrumbTrail();
+      drawLegend();
+
+      // Bounding circle underneath the sunburst, to make it easier to detect
+      // when the mouse leaves the parent g.
+      vis.append("svg:circle")
+        .attr("r", radius)
+        .style("opacity", 0);
+
+      // For efficiency, filter nodes to keep only those large enough to see.
+      var nodes = partition.nodes(data)
+        .filter(function (d) {
+          return (d.dx > 0.005); // 0.005 radians = 0.29 degrees
+        });
+
+      var path = vis.data([data]).selectAll("path")
+        .data(nodes)
+        .enter().append("svg:path")
+        .attr("display", function (d) { return d.depth ? null : "none"; })
+        .attr("d", arc)
+        .attr("fill-rule", "evenodd")
+        .style("fill", function (d) {
+          return (d.depth > 1) ? '#0B4C5F' : colors[d.name];
+        })
+        .style("opacity", 1)
+        .on("mouseover", mouseover);
+
+      // Add the mouseleave handler to the bounding circle.
+      d3.select("#container").on("mouseleave", mouseleave);
+
+      // Get total size of the tree = value of root node from partition.
+      totalSize = path.node().__data__.value;
+    }
+
+    // Fade all but the current sequence, and show it in the breadcrumb trail.
+    function mouseover(d) {
+
+      var percentage = (100 * d.value / totalSize).toPrecision(3);
+      var percentageString = percentage + "%";
+      if (percentage < 0.1) {
+        percentageString = "< 0.1%";
+      }
+
+      d3.select("#percentage")
+        .text(d.value);
+
+      d3.select("#percentage_desc")
+        .text(d.name);
+
+      d3.select("#explanation")
+        .style("visibility", "");
+
+      var sequenceArray = getAncestors(d);
+      updateBreadcrumbs(sequenceArray, percentageString);
+
+      // Fade all the segments.
+      d3.selectAll("path")
+        .style("opacity", 0.3);
+
+      // Then highlight only those that are an ancestor of the current segment.
+      vis.selectAll("path")
+        .filter(function (node) {
+          return (sequenceArray.indexOf(node) >= 0);
+        })
+        .style("opacity", 1);
+    }
+
+    // Restore everything to full opacity when moving off the visualization.
+    function mouseleave(d) {
+
+      // Hide the breadcrumb trail
+      d3.select("#trail")
+        .style("visibility", "hidden");
+
+      // Deactivate all segments during transition.
+      d3.selectAll("path").on("mouseover", null);
+
+      // Transition each segment to full opacity and then reactivate it.
+      d3.selectAll("path")
+        .transition()
+        .duration(1000)
+        .style("opacity", 1)
+        .each("end", function () {
+          d3.select(this).on("mouseover", mouseover);
+        });
+
+      d3.select("#explanation")
+        .style("visibility", "hidden");
+    }
+
+    // Given a node in a partition layout, return an array of all of its ancestor
+    // nodes, highest first, but excluding the root.
+    function getAncestors(node) {
+      var path = [];
+      var current = node;
+      while (current.parent) {
+        path.unshift(current);
+        current = current.parent;
+      }
+      return path;
+    }
+
+    function initializeBreadcrumbTrail() {
+      // Add the svg area.
+      var trail = d3.select("#sequence").append("svg:svg")
+        .attr("width", width)
+        .attr("height", 50)
+        .attr("id", "trail");
+      // Add the label at the end, for the percentage.
+      trail.append("svg:text")
+        .attr("id", "endlabel")
+        .style("fill", "#000");
+    }
+
+    // Generate a string that describes the points of a breadcrumb polygon.
+    function breadcrumbPoints(d, i) {
+      var points = [];
+      points.push("0,0");
+      points.push(b.w + ",0");
+      points.push(b.w + b.t + "," + (b.h / 2));
+      points.push(b.w + "," + b.h);
+      points.push("0," + b.h);
+      if (i > 0) { // Leftmost breadcrumb; don't include 6th vertex.
+        points.push(b.t + "," + (b.h / 2));
+      }
+      return points.join(" ");
+    }
+
+    // Update the breadcrumb trail to show the current sequence and percentage.
+    function updateBreadcrumbs(nodeArray, percentageString) {
+
+      // Data join; key function combines name and depth (= position in sequence).
+      var g = d3.select("#trail")
+        .selectAll("g")
+        .data(nodeArray, function (d) { return d.name + d.depth; });
+
+      // Add breadcrumb and label for entering nodes.
+      var entering = g.enter().append("svg:g");
+
+      entering.append("svg:polygon")
+        .attr("points", breadcrumbPoints)
+        .style("fill", function (d) {
+          return (d.depth > 1) ? '#99AA99' : colors[d.name];
+        });
+
+      entering.append("svg:text")
+        .attr("x", (b.w + b.t) / 2)
+        .attr("y", b.h / 2)
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "middle")
+        .text(function (d) { return d.name; });
+
+      // Set position for entering and updating nodes.
+      g.attr("transform", function (d, i) {
+        return "translate(" + (i + 0.2) * (b.w + b.s) + ", 0)";
+      });
+
+      // Remove exiting nodes.
+      g.exit().remove();
+
+      // Now move and update the percentage at the end.
+      d3.select("#trail").select("#endlabel")
+        .attr("x", (nodeArray.length + 0.5) * (b.w + b.s))
+        .attr("y", b.h / 2)
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "middle")
+        .text(percentageString);
+
+      // Make the breadcrumb trail visible, if it's hidden.
+      d3.select("#trail")
+        .style("visibility", "");
+
+    }
+
+    function drawLegend() {
+
+      // Dimensions of legend item: width, height, spacing, radius of rounded rect.
+      var li = {
+        w: 75, h: 30, s: 3, r: 3
+      };
+
+      var legend = d3.select("#legend").append("svg:svg")
+        .attr("width", li.w)
+        .attr("height", d3.keys(colors).length * (li.h + li.s));
+
+      var g = legend.selectAll("g")
+        .data(d3.entries(colors))
+        .enter().append("svg:g")
+        .attr("transform", function (d, i) {
+          return "translate(0," + i * (li.h + li.s) + ")";
+        });
+
+      g.append("svg:rect")
+        .attr("rx", li.r)
+        .attr("ry", li.r)
+        .attr("width", li.w)
+        .attr("height", li.h)
+        .style("fill", function (d) { return d.value; });
+
+      g.append("svg:text")
+        .attr("x", li.w / 2)
+        .attr("y", li.h / 2)
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "middle")
+        .text(function (d) { return d.key; });
+    }
+  </script>
+  <script type="text/javascript">
+    // Hack to make this example display correctly in an iframe on bl.ocks.org
+    d3.select(self.frameElement).style("height", "700px");
+  </script>
+</body>
+
+</html>
