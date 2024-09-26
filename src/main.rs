@@ -1,6 +1,7 @@
 mod error;
+
 use error::Result;
-use eyre::OptionExt;
+use eyre::{eyre, OptionExt};
 
 use std::{
     collections::HashMap,
@@ -196,13 +197,13 @@ pub fn find_closing_bracket(text: &str, start: usize) -> Option<usize> {
     None
 }
 
-pub fn split_name(n: &str) -> (Vec<String>, String) {
+pub fn split_name(n: &str) -> Result<(Vec<String>, String)> {
     if n.starts_with("_<") {
         // the impl of an interface...
         // e.g. _<nci::messages::Command as core::convert::TryFrom<(u16,&[u8])>>::try_from::h1321c64737577399
 
         let closing_index = find_closing_bracket(n, 1)
-            .unwrap_or_else(|| panic!("Name with unexpected shape, no closing: {}", n));
+            .ok_or_else(|| eyre!("Name with unexpected shape, no closing: {n}"))?;
         let imp = &n[2..closing_index];
         let impl_pieces = imp.split(" as ").collect::<Vec<_>>();
         assert!(
@@ -216,20 +217,20 @@ pub fn split_name(n: &str) -> (Vec<String>, String) {
         let func = &n[closing_index + 1..];
         let func_pieces = func.split("::").collect::<Vec<_>>();
 
-        (module, impl_pieces[1].to_owned() + "::" + func_pieces[1])
+        Ok((module, impl_pieces[1].to_owned() + "::" + func_pieces[1]))
     } else {
         // normal symbol
         // e.g. nci::comm::packets::Packetizer::get_mut::panic_cold_explicit::h84576c2c34ef900f
 
         let parts = n.split("::").collect::<Vec<_>>();
-        if let [module @ .., name, _hash] = &parts[..] {
+        Ok(if let [module @ .., name, _hash] = &parts[..] {
             (
                 module.iter().map(|&s| s.to_owned()).collect(),
                 (*name).to_owned(),
             )
         } else {
             (Vec::new(), n.to_owned())
-        }
+        })
     }
 }
 
@@ -289,7 +290,7 @@ fn parse_file(file: File) -> Result<Hierarchy> {
                     // ignore local symbols
                     continue;
                 }
-                let (module, name) = split_name(&unescape_name(id));
+                let (module, name) = split_name(&unescape_name(id))?;
                 dbg!(&module, &name);
                 let symbol = Symbol {
                     vma,
