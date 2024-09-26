@@ -1,7 +1,6 @@
 /target
-*.html
+Cargo.lock
 .vscode
 
-Cargo.lock
-
+*.html
 *.map
