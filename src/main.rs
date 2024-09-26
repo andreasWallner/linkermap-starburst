@@ -1,5 +1,6 @@
 mod error;
 use error::Result;
+use eyre::OptionExt;
 
 use std::{
     collections::HashMap,
@@ -37,23 +38,26 @@ pub enum Data {
     Empty,
 }
 
-fn parse(s: String) -> Line {
+fn parse(s: String) -> Result<Line> {
     if s.trim_start_matches(' ').starts_with("VMA") {
-        return Line::Headline;
+        return Ok(Line::Headline);
     }
 
-    let re = Regex::new(r"^\s*(?P<vma>[0-9a-fA-F]+)\s+(?P<lma>[0-9a-fA-F]+)\s+(?P<size>[0-9a-fA-F]+)\s+(?P<align>[0-9a-fA-F]+)\s?(?P<indented_entry>.+)$").unwrap();
+    let re = Regex::new(
+        r"^\s*(?P<vma>[0-9a-fA-F]+)\s+(?P<lma>[0-9a-fA-F]+)\s+(?P<size>[0-9a-fA-F]+)\s+(?P<align>[0-9a-fA-F]+)\s?(?P<indented_entry>.+)$",
+    )?;
     re.captures(&s)
-        .map(|cap| {
-            let vma = u64::from_str_radix(cap.name("vma").unwrap().as_str(), 16)
-                .expect("VMA parsing failed");
-            let lma = u64::from_str_radix(cap.name("lma").unwrap().as_str(), 16)
-                .expect("LMA parsing failed");
-            let size = u64::from_str_radix(cap.name("size").unwrap().as_str(), 16)
-                .expect("Size parsing failed");
-            let align = u64::from_str_radix(cap.name("align").unwrap().as_str(), 16)
-                .expect("Align parsing failed");
-            let indented_entry = cap.name("indented_entry").unwrap().as_str();
+        .map(|cap| -> Result<_> {
+            let vma = u64::from_str_radix(cap.name("vma").ok_or_eyre("VMA capture")?.as_str(), 16)?;
+            let lma = u64::from_str_radix(cap.name("lma").ok_or_eyre("LMA capture")?.as_str(), 16)?;
+            let size =
+                u64::from_str_radix(cap.name("size").ok_or_eyre("Size capture")?.as_str(), 16)?;
+            let align =
+                u64::from_str_radix(cap.name("align").ok_or_eyre("Align capture")?.as_str(), 16)?;
+            let indented_entry = cap
+                .name("indented_entry")
+                .ok_or_eyre("indented_entry capture")?
+                .as_str();
             let entry = indented_entry.trim_matches(' ');
 
             let data = if entry.is_empty() {
@@ -62,11 +66,11 @@ fn parse(s: String) -> Line {
                 Data::Symbol(entry.to_owned())
             } else if indented_entry.starts_with("        ") {
                 if let Some(segment) = entry.strip_prefix(". = ALIGN ( ") {
-                    let val = segment.strip_suffix(" )").unwrap();
-                    Data::Align(val.parse().unwrap())
+                    let val = segment.strip_suffix(" )").ok_or_eyre("no suffix")?;
+                    Data::Align(val.parse()?)
                 } else if let Some(segment) = entry.strip_prefix(". = ABSOLUTE ( ") {
-                    let val = segment.strip_suffix(" )").unwrap();
-                    Data::Absolute(val.parse().unwrap())
+                    let val = segment.strip_suffix(" )").ok_or_eyre("no suffix")?;
+                    Data::Absolute(val.parse()?)
                 } else {
                     Data::File(entry.to_owned())
                 }
@@ -74,15 +78,15 @@ fn parse(s: String) -> Line {
                 Data::Section(entry.to_owned())
             };
 
-            Line::AddressedSymbol(Addressed {
+            Ok(Line::AddressedSymbol(Addressed {
                 vma,
                 lma,
                 size,
                 align,
                 entry: data,
-            })
+            }))
         })
-        .unwrap()
+        .ok_or_eyre("Regex failed to capture")?
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -262,7 +266,7 @@ fn parse_file(file: File) -> Result<Hierarchy> {
     let lines = io::BufReader::new(file)
         .lines()
         .map(|l| l.map(parse))
-        .collect::<std::result::Result<Vec<Line>, _>>()?;
+        .collect::<std::result::Result<Result<Vec<Line>>, _>>()??;
 
     for l in lines {
         match l {
