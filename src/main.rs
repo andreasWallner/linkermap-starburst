@@ -134,47 +134,48 @@ impl Hierarchy {
     }
 }
 
-fn serialize<T>(section: &Hierarchy, writer: &mut T)
+fn serialize<T>(section: &Hierarchy, writer: &mut T) -> Result<()>
 where
     T: io::Write,
 {
     if section.symbols.is_empty() && section.sublevels.len() == 1 {
-        serialize(section.sublevels.iter().next().unwrap().1, writer);
+        let Some(sublevel) = section.sublevels.iter().next() else {
+            unreachable!();
+        };
+        serialize(sublevel.1, writer)
     } else {
-        writer
-            .write_fmt(format_args!("name: \"{}\"", section.name))
-            .unwrap();
+        writer.write_fmt(format_args!("name: \"{}\"", section.name))?;
         if !section.symbols.is_empty() || !section.sublevels.is_empty() {
-            writer.write_all(", children: [".as_bytes()).unwrap();
+            writer.write_all(", children: [".as_bytes())?;
             let mut first = true;
             for section in section.sublevels.values() {
                 if !first {
-                    writer.write_all(", ".as_bytes()).unwrap();
+                    writer.write_all(", ".as_bytes())?;
                 } else {
                     first = false;
                 }
-                writer.write_all("{".as_bytes()).unwrap();
-                serialize(section, writer);
-                writer.write_all("}".as_bytes()).unwrap();
+                writer.write_all("{".as_bytes())?;
+                serialize(section, writer)?;
+                writer.write_all("}".as_bytes())?;
             }
 
             for symbol in section.symbols.iter() {
                 if !first {
-                    writer.write_all(", ".as_bytes()).unwrap();
+                    writer.write_all(", ".as_bytes())?;
                 } else {
                     first = false;
                 }
 
-                writer
-                    .write_fmt(format_args!(
-                        "{{ name: \"{}\", size: {} }}",
-                        symbol.name, symbol.size
-                    ))
-                    .unwrap();
+                writer.write_fmt(format_args!(
+                    "{{ name: \"{}\", size: {} }}",
+                    symbol.name, symbol.size
+                ))?;
             }
 
-            writer.write_all("]".as_bytes()).unwrap();
+            writer.write_all("]".as_bytes())?;
         }
+
+        Ok(())
     }
 }
 
@@ -325,7 +326,7 @@ fn generate_plot(section: &Hierarchy, target_filename: &str) -> Result<()> {
 
     let mut string: Vec<u8> = Vec::new();
     //let string_writer = io::BufWriter::new(string);
-    serialize(section, &mut string);
+    serialize(section, &mut string)?;
     context.insert("serialized", &String::from_utf8(string)?);
 
     tera.render_to("pie", &context, writer)?;
