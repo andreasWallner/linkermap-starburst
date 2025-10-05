@@ -9,7 +9,11 @@ use std::{
     io::{self, BufRead},
 };
 
-use regex::Regex;
+use nom::{
+    bytes::complete::{tag, take_until, take_while1},
+    character::complete::{hex_digit1, space0, space1},
+    IResult,
+};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
@@ -45,72 +49,183 @@ fn parse(s: String) -> Result<Line> {
         return Ok(Line::Headline);
     }
 
-    let re = Regex::new(
-        r"^\s*(?P<vma>[0-9a-fA-F]+)\s+(?P<lma>[0-9a-fA-F]+)\s+(?P<size>[0-9a-fA-F]+)\s+(?P<align>[0-9a-fA-F]+)\s?(?P<indented_entry>.+)$",
-    )?;
-    re.captures(&s)
-        .map(|cap| -> Result<_> {
-            let vma = u64::from_str_radix(cap.name("vma").ok_or_eyre("VMA capture")?.as_str(), 16)?;
-            let lma = u64::from_str_radix(cap.name("lma").ok_or_eyre("LMA capture")?.as_str(), 16)?;
-            let size =
-                u64::from_str_radix(cap.name("size").ok_or_eyre("Size capture")?.as_str(), 16)?;
-            let align =
-                u64::from_str_radix(cap.name("align").ok_or_eyre("Align capture")?.as_str(), 16)?;
-            let indented_entry = cap
-                .name("indented_entry")
-                .ok_or_eyre("indented_entry capture")?
-                .as_str();
-            let entry = indented_entry.trim_matches(' ');
+    match parse_line(&s) {
+        Ok((_, line)) => Ok(line),
+        Err(_) => panic!("Failed to parse line: {}", s),
+    }
+}
 
-            if entry.starts_with("PROVIDE ( ") {
-                let val = entry
-                    .strip_prefix("PROVIDE ( ")
-                    .unwrap()
-                    .strip_suffix(" )")
-                    .unwrap();
-                return Ok(Line::ProvidedSymbol {
-                    vma,
-                    lma,
-                    text: val.to_owned(),
-                });
-            }
+fn parse_hex(input: &str) -> IResult<&str, u64> {
+    let (input, hex_str) = hex_digit1(input)?;
+    let value = u64::from_str_radix(hex_str, 16).map_err(|_| {
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
+    })?;
+    Ok((input, value))
+}
 
-            let data = if entry.is_empty() {
-                Data::Empty
-            } else if indented_entry.starts_with("                ") {
-                Data::Symbol(entry.to_owned())
-            } else if indented_entry.starts_with("        ") {
-                if let Some(segment) = entry.strip_prefix(". = ALIGN ( ") {
-                    let val = segment.strip_suffix(" )").ok_or_eyre("no suffix")?;
-                    Data::Align(val.parse()?)
-                } else if let Some(segment) = entry.strip_prefix(". = ABSOLUTE ( ") {
-                    let val = segment.strip_suffix(" )").ok_or_eyre("no suffix")?;
-                    Data::Absolute(val.parse().unwrap())
-                } else if let Some(segment) = entry.strip_prefix(". += ") {
-                    let val = segment;
-                    Data::Relative(val.parse().unwrap())
-                } else if let Some(segment) = entry.strip_suffix(" = .") {
-                    return Ok(Line::ProvidedSymbol {
-                        vma,
-                        lma,
-                        text: segment.to_owned(),
-                    });
-                } else {
-                    Data::File(entry.to_owned())
+// Parse exactly N spaces
+fn parse_spaces(n: usize) -> impl Fn(&str) -> IResult<&str, &str> {
+    move |input| {
+        if input.len() >= n && input[..n].chars().all(|c| c == ' ') {
+            Ok((&input[n..], &input[..n]))
+        } else {
+            Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            )))
+        }
+    }
+}
+
+// Parse PROVIDE symbol content - handles nested parentheses
+fn parse_provide_content(input: &str) -> IResult<&str, &str> {
+    let (input, _) = tag("PROVIDE ( ")(input)?;
+
+    // Find the matching closing " )" by counting parentheses
+    let mut paren_count = 0;
+    let mut end_pos = None;
+
+    for (i, c) in input.char_indices() {
+        match c {
+            '(' => paren_count += 1,
+            ')' => {
+                if paren_count == 0 && i > 0 && input.chars().nth(i - 1) == Some(' ') {
+                    end_pos = Some(i - 1);
+                    break;
                 }
-            } else {
-                Data::Section(entry.to_owned())
-            };
+                paren_count -= 1;
+            }
+            _ => {}
+        }
+    }
 
-            Ok(Line::AddressedSymbol(Addressed {
+    if let Some(pos) = end_pos {
+        let content = &input[..pos];
+        let remaining = &input[pos + 2..]; // Skip " )"
+        Ok((remaining, content))
+    } else {
+        Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::TakeUntil,
+        )))
+    }
+}
+
+// Parse ALIGN construct
+fn parse_align_construct(input: &str) -> IResult<&str, usize> {
+    let (input, _) = tag(". = ALIGN ( ")(input)?;
+    let (input, num_str) = take_while1(|c: char| c.is_ascii_digit())(input)?;
+    let (input, _) = tag(" )")(input)?;
+    let value = num_str.parse().map_err(|_| {
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
+    })?;
+    Ok((input, value))
+}
+
+// Parse ABSOLUTE construct
+fn parse_absolute_construct(input: &str) -> IResult<&str, &str> {
+    let (input, _) = tag(". = ABSOLUTE ( ")(input)?;
+    let (input, content) = take_until(" )")(input)?;
+    let (input, _) = tag(" )")(input)?;
+    Ok((input, content))
+}
+
+// Parse relative construct (. += )
+fn parse_relative_construct(input: &str) -> IResult<&str, &str> {
+    let (input, _) = tag(". += ")(input)?;
+    let (input, content) = take_while1(|c: char| !c.is_whitespace())(input)?;
+    Ok((input, content))
+}
+
+// Parse assignment (symbol = .)
+fn parse_assignment(input: &str) -> IResult<&str, &str> {
+    let (input, name) = take_until(" = .")(input)?;
+    let (input, _) = tag(" = .")(input)?;
+    Ok((input, name))
+}
+
+fn parse_line(input: &str) -> IResult<&str, Line> {
+    let (input, _) = space0(input)?;
+    let (input, vma) = parse_hex(input)?;
+    let (input, _) = space1(input)?;
+    let (input, lma) = parse_hex(input)?;
+    let (input, _) = space1(input)?;
+    let (input, size) = parse_hex(input)?;
+    let (input, _) = space1(input)?;
+    let (input, align) = parse_hex(input)?;
+    // Consume one space after align (minimal required), but leave the rest for indented_entry
+    let (input, _) = if let Some(stripped) = input.strip_prefix(' ') {
+        (stripped, ' ')
+    } else {
+        (input, ' ')
+    };
+    let (remaining, indented_entry) = ("", input);
+
+    let entry = indented_entry.trim_matches(' ');
+
+    // Handle PROVIDE symbols at the top level
+    if let Ok((_, content)) = parse_provide_content(entry) {
+        return Ok((
+            remaining,
+            Line::ProvidedSymbol {
                 vma,
                 lma,
-                size,
-                align,
-                entry: data,
-            }))
-        })
-        .ok_or_eyre("Regex failed to capture")?
+                text: content.to_owned(),
+            },
+        ));
+    }
+
+    // Handle assignment symbols like "_sdata = ."
+    if let Ok((_, name)) = parse_assignment(entry) {
+        return Ok((
+            remaining,
+            Line::ProvidedSymbol {
+                vma,
+                lma,
+                text: name.to_owned(),
+            },
+        ));
+    }
+
+    let data = if entry.is_empty() {
+        Data::Empty
+    } else if parse_spaces(16)(indented_entry).is_ok() {
+        // 16 spaces - symbol level
+        Data::Symbol(entry.to_owned())
+    } else if parse_spaces(8)(indented_entry).is_ok() {
+        // 8 spaces - file level or special constructs
+        if let Ok((_, val)) = parse_align_construct(entry) {
+            Data::Align(val)
+        } else if let Ok((_, content)) = parse_absolute_construct(entry) {
+            Data::Absolute(content.to_owned())
+        } else if let Ok((_, content)) = parse_relative_construct(entry) {
+            Data::Relative(content.to_owned())
+        } else if let Ok((_, name)) = parse_assignment(entry) {
+            return Ok((
+                remaining,
+                Line::ProvidedSymbol {
+                    vma,
+                    lma,
+                    text: name.to_owned(),
+                },
+            ));
+        } else {
+            Data::File(entry.to_owned())
+        }
+    } else {
+        Data::Section(entry.to_owned())
+    };
+
+    Ok((
+        remaining,
+        Line::AddressedSymbol(Addressed {
+            vma,
+            lma,
+            size,
+            align,
+            entry: data,
+        }),
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -376,7 +491,7 @@ fn main() -> Result<()> {
 }
 
 #[cfg(test)]
-mod test {
+mod test_parse {
     use super::*;
 
     #[test]
