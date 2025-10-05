@@ -16,7 +16,7 @@ use tera::{Context, Tera};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Line {
     Headline,
-    ProvidedSymbol(String),
+    ProvidedSymbol { vma: u64, lma: u64, text: String },
     AddressedSymbol(Addressed),
 }
 
@@ -35,6 +35,7 @@ pub enum Data {
     File(String),
     Symbol(String),
     Absolute(String),
+    Relative(String),
     Align(usize),
     Empty,
 }
@@ -61,6 +62,19 @@ fn parse(s: String) -> Result<Line> {
                 .as_str();
             let entry = indented_entry.trim_matches(' ');
 
+            if entry.starts_with("PROVIDE ( ") {
+                let val = entry
+                    .strip_prefix("PROVIDE ( ")
+                    .unwrap()
+                    .strip_suffix(" )")
+                    .unwrap();
+                return Ok(Line::ProvidedSymbol {
+                    vma,
+                    lma,
+                    text: val.to_owned(),
+                });
+            }
+
             let data = if entry.is_empty() {
                 Data::Empty
             } else if indented_entry.starts_with("                ") {
@@ -71,7 +85,16 @@ fn parse(s: String) -> Result<Line> {
                     Data::Align(val.parse()?)
                 } else if let Some(segment) = entry.strip_prefix(". = ABSOLUTE ( ") {
                     let val = segment.strip_suffix(" )").ok_or_eyre("no suffix")?;
-                    Data::Absolute(val.parse()?)
+                    Data::Absolute(val.parse().unwrap())
+                } else if let Some(segment) = entry.strip_prefix(". += ") {
+                    let val = segment;
+                    Data::Relative(val.parse().unwrap())
+                } else if let Some(segment) = entry.strip_suffix(" = .") {
+                    return Ok(Line::ProvidedSymbol {
+                        vma,
+                        lma,
+                        text: segment.to_owned(),
+                    });
                 } else {
                     Data::File(entry.to_owned())
                 }
@@ -350,4 +373,180 @@ fn main() -> Result<()> {
     };
 
     visualize(&map_file)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_headline() {
+        let line = parse(Ok(
+            "     VMA      LMA     Size Align Out     In      Symbol".to_owned(),
+        ));
+        assert_eq!(line, Line::Headline);
+    }
+
+    #[test]
+    fn test_provided_symbol() {
+        assert_eq!(
+            parse(Ok(
+                "       0        0        0     1 PROVIDE ( _stext = ORIGIN ( REGION_TEXT ) )"
+                    .to_owned(),
+            )),
+            Line::ProvidedSymbol {
+                vma: 0,
+                lma: 0,
+                text: "_stext = ORIGIN ( REGION_TEXT )".to_owned()
+            }
+        );
+
+        assert_eq!(
+            parse(Ok(
+                "   10000    10000        0     1         PROVIDE ( __global_pointer$ = . + 0x800 )".to_owned(),
+            )),
+            Line::ProvidedSymbol {
+                vma: 0x10000,
+                lma: 0x10000,
+                text: "__global_pointer$ = . + 0x800".to_owned()
+            }
+        );
+
+        assert_eq!(
+            parse(Ok(
+                "   10000    10000        0     1         _sdata = .".to_owned(),
+            )),
+            Line::ProvidedSymbol {
+                vma: 0x10000,
+                lma: 0x10000,
+                text: "_sdata".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn test_section() {
+        assert_eq!(
+            parse(Ok(
+                "   20000    20000        0     1 .text.dummy".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x20000,
+                lma: 0x20000,
+                size: 0,
+                align: 1,
+                entry: Data::Section(".text.dummy".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_absolute() {
+        assert_eq!(
+            parse(Ok(
+                "   20000    20000        0     1         . = ABSOLUTE ( _stext )".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x20000,
+                lma: 0x20000,
+                size: 0,
+                align: 1,
+                entry: Data::Absolute("_stext".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_relative() {
+        assert_eq!(
+            parse(Ok(
+                "   10000    10000        0     1         . += _heap_size".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x10000,
+                lma: 0x10000,
+                size: 0,
+                align: 1,
+                entry: Data::Relative("_heap_size".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_file() {
+        assert_eq!(
+            parse(Ok(
+                r"   20000    20000       9c     1         C:\work\git\ric-radio\ric-test-fw\target\riscv32imc-unknown-none-elf\release\deps\ric_test_fw-324ec8e9e7d3d14f.ric_test_fw.534aac6062c7601b-cgu.0.rcgu.o:(.init)"
+                    .to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x20000,
+                lma: 0x20000,
+                size: 0x9c,
+                align: 1,
+                entry: Data::File(r"C:\work\git\ric-radio\ric-test-fw\target\riscv32imc-unknown-none-elf\release\deps\ric_test_fw-324ec8e9e7d3d14f.ric_test_fw.534aac6062c7601b-cgu.0.rcgu.o:(.init)".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_symbol() {
+        assert_eq!(
+            parse(Ok(
+                "   2009c    2009c       6a     1                 _start_rust".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x2009c,
+                lma: 0x2009c,
+                size: 0x6a,
+                align: 1,
+                entry: Data::Symbol("_start_rust".to_owned()),
+            })
+        );
+
+        assert_eq!(
+            parse(Ok(
+                "   205a8    205a8       30     1                 __INTERRUPTS".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x205a8,
+                lma: 0x205a8,
+                size: 0x30,
+                align: 1,
+                entry: Data::Symbol("__INTERRUPTS".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_align() {
+        assert_eq!(
+            parse(Ok(
+                "   20106    20106        0     4         . = ALIGN ( 4 )".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x20106,
+                lma: 0x20106,
+                size: 0,
+                align: 4,
+                entry: Data::Align(4),
+            })
+        );
+    }
+
+    #[test]
+    fn test_empty() {
+        assert_eq!(
+            parse(Ok(
+                "   2046c    2046c        0     1                 ".to_owned(),
+            )),
+            Line::AddressedSymbol(Addressed {
+                vma: 0x2046c,
+                lma: 0x2046c,
+                size: 0,
+                align: 1,
+                entry: Data::Empty,
+            })
+        );
+    }
 }
