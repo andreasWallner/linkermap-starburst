@@ -3,6 +3,8 @@ use std::fs::File;
 
 // ANSI color codes
 const GREY: &str = "\x1b[90m";
+const CYAN: &str = "\x1b[96m"; // Light cyan for leaf nodes
+const YELLOW: &str = "\x1b[93m"; // Light yellow for module names
 const RESET: &str = "\x1b[0m";
 
 pub fn visualize_stdout(filename: &str) -> Result<()> {
@@ -39,8 +41,8 @@ fn print_tree(hierarchy: &Hierarchy, prefix: &str, is_last: bool) {
         println!("Root {}({} bytes){}", GREY, formatted_size, RESET);
     } else {
         println!(
-            "{}{}{} {}({} bytes){}",
-            prefix, connector, hierarchy.name, GREY, formatted_size, RESET
+            "{}{}{}{} {}({} bytes){}",
+            prefix, connector, YELLOW, hierarchy.name, GREY, formatted_size, RESET
         );
     }
 
@@ -83,8 +85,8 @@ fn print_tree(hierarchy: &Hierarchy, prefix: &str, is_last: bool) {
 
             let formatted_size = format_bytes(symbol.size);
             println!(
-                "{}{}{} {}({} bytes){}{}",
-                new_prefix, connector, symbol.name, GREY, formatted_size, section_info, RESET
+                "{}{}{}{} {}({} bytes){}{}",
+                new_prefix, connector, CYAN, symbol.name, GREY, formatted_size, section_info, RESET
             );
         }
     }
