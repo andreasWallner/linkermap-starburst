@@ -258,7 +258,6 @@ fn visualize(filename: &str) -> Result<()> {
     let file = File::open(filename)?;
 
     let tree = parse_file(file)?;
-    //println!("{:#?}", tree);
     generate_plot(&tree, "pie.html")?;
 
     Ok(())
