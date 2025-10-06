@@ -123,26 +123,46 @@ pub fn find_closing_bracket(text: &str, start: usize) -> Option<usize> {
 }
 
 pub fn split_name(n: &str) -> Result<(Vec<String>, String)> {
-    if n.starts_with("_<") {
-        // the impl of an interface...
-        // e.g. _<nci::messages::Command as core::convert::TryFrom<(u16,&[u8])>>::try_from::h1321c64737577399
-
-        let closing_index = find_closing_bracket(n, 1)
+    // Check if we have an impl block anywhere in the path
+    if let Some(impl_start) = n.find("_<") {
+        // Find the matching closing bracket for the impl block
+        let closing_index = find_closing_bracket(n, impl_start + 1)
             .ok_or_else(|| eyre!("Name with unexpected shape, no closing: {n}"))?;
-        let imp = &n[2..closing_index];
-        let impl_pieces = imp.split(" as ").collect::<Vec<_>>();
-        assert!(
-            impl_pieces.len() == 2,
-            "Name with unexpected shape, too few pieces: {}",
-            n
-        );
 
-        let module = impl_pieces[0].split("::").map(|s| s.to_owned()).collect();
+        // Split the path before the impl block
+        let before_impl = &n[..impl_start];
+        let impl_block = &n[impl_start..=closing_index];
+        let after_impl = &n[closing_index + 1..];
 
-        let func = &n[closing_index + 1..];
-        let func_pieces = func.split("::").collect::<Vec<_>>();
+        // Parse the parts before the impl block
+        let mut module_parts: Vec<String> = if before_impl.is_empty() {
+            Vec::new()
+        } else {
+            before_impl
+                .trim_end_matches("::")
+                .split("::")
+                .map(|s| s.to_owned())
+                .collect()
+        };
 
-        Ok((module, impl_pieces[1].to_owned() + "::" + func_pieces[1]))
+        // Add the entire impl block as a single module component
+        module_parts.push(impl_block.to_owned());
+
+        // Parse the parts after the impl block to get the function name
+        let after_parts = after_impl
+            .trim_start_matches("::")
+            .split("::")
+            .collect::<Vec<_>>();
+        let function_name = if after_parts.len() >= 2 {
+            // Usually the pattern is ::function_name::hash, so take the first part after ::
+            after_parts[0].to_owned()
+        } else if !after_parts.is_empty() {
+            after_parts[0].to_owned()
+        } else {
+            "unknown".to_owned()
+        };
+
+        Ok((module_parts, function_name))
     } else {
         // normal symbol
         // e.g. nci::comm::packets::Packetizer::get_mut::panic_cold_explicit::h84576c2c34ef900f
@@ -308,4 +328,27 @@ fn print_usage(program_name: &str) {
         "  {} --stdout memory.map  # Output tree to stdout",
         program_name
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_split_name_unescape() {
+        // test adding parsed "   38c58    38c58       6e     1                 nci::messages::common::_$LT$impl$u20$core..convert..TryFrom$LT$nci..messages..common..Bitrate$GT$$u20$for$u20$iso14443..Bitrate$GT$::try_from::hddb4e9709a7a10d4"
+        let name = "nci::messages::common::_$LT$impl$u20$core..convert..TryFrom$LT$nci..messages..common..Bitrate$GT$$u20$for$u20$iso14443..Bitrate$GT$::try_from::hddb4e9709a7a10d4".to_owned();
+        let (modules, func) = split_name(&unescape_name(&name)).unwrap();
+        assert_eq!(
+            modules,
+            vec![
+                "nci",
+                "messages",
+                "common",
+                "_<impl core::convert::TryFrom<nci::messages::common::Bitrate> for iso14443::Bitrate>"
+            ]
+            .iter().map(|s| s.to_string())
+            .collect::<Vec<_>>()
+        );
+        assert_eq!(func, "try_from");
+    }
 }
