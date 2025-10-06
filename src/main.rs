@@ -1,4 +1,5 @@
 mod error;
+mod stdout;
 use error::Result;
 use eyre::eyre;
 mod parser;
@@ -212,7 +213,6 @@ fn parse_file(file: File) -> Result<Hierarchy> {
                     continue;
                 }
                 let (module, name) = split_name(&unescape_name(id))?;
-                dbg!(&module, &name);
                 let symbol = Symbol {
                     vma,
                     lma,
@@ -265,9 +265,48 @@ fn visualize(filename: &str) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let Some(map_file) = std::env::args().nth(1) else {
-        return Err(eyre!("Usage: linkermap-starburst <map_file>"));
-    };
+    let args: Vec<String> = std::env::args().collect();
 
-    visualize(&map_file)
+    match args.len() {
+        2 => {
+            // Default behavior: output to file
+            visualize(&args[1])
+        }
+        3 => {
+            match args[1].as_str() {
+                "--stdout" | "-s" => {
+                    // Output tree to stdout
+                    stdout::visualize_stdout(&args[2])
+                }
+                "--file" | "-f" => {
+                    // Output to file (explicit)
+                    visualize(&args[2])
+                }
+                _ => {
+                    print_usage(&args[0]);
+                    std::process::exit(-1);
+                }
+            }
+        }
+        _ => {
+            print_usage(&args[0]);
+            std::process::exit(-1);
+        }
+    }
+}
+
+fn print_usage(program_name: &str) {
+    eprintln!("Usage: {} [OPTIONS] <map_file>", program_name);
+    eprintln!("Options:");
+    eprintln!("  -s, --stdout    Output tree visualization to stdout");
+    eprintln!("  -f, --file      Output HTML plot to file (default)");
+    eprintln!("Examples:");
+    eprintln!(
+        "  {} memory.map           # Output HTML to pie.html",
+        program_name
+    );
+    eprintln!(
+        "  {} --stdout memory.map  # Output tree to stdout",
+        program_name
+    );
 }
