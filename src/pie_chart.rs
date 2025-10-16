@@ -1,4 +1,4 @@
-use crate::{parse_file, Hierarchy, Result};
+use crate::{Hierarchy, Result, parse_file};
 use std::{fs::File, io};
 use tera::{Context, Tera};
 

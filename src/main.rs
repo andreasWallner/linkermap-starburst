@@ -4,7 +4,7 @@ mod stdout;
 use error::Result;
 use eyre::eyre;
 mod parser;
-use parser::{parse, Addressed, Data, Line};
+use parser::{Addressed, Data, Line, parse};
 
 use std::{
     collections::HashMap,
@@ -140,22 +140,93 @@ pub fn split_sections(symbol: &Symbol) -> Vec<String> {
 pub fn split_modules(symbol: &Symbol) -> Vec<String> {
     symbol.module.clone()
 }
-#[allow(clippy::ptr_arg)]
-pub fn unescape_name(name: &String) -> String {
-    // TODO fix handling of all `$u` escapes
-    name.replace("$LT$", "<")
-        .replace("$GT$", ">")
-        .replace("..", "::")
-        .replace("$LP$", "(")
-        .replace("$RP$", ")")
-        .replace("$u20$", " ")
-        .replace("$u7b$", "{")
-        .replace("$u7d$", "}")
-        .replace("$u5b$", "[")
-        .replace("$u5d$", "]")
-        .replace("$u3b$", ";")
-        .replace("$C$", ",")
-        .replace("$RF$", "&")
+
+fn unescape_name(input: &str) -> String {
+    if input.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::with_capacity(input.len() * 2); // Generous capacity
+    let bytes = input.as_bytes();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        let remaining = &bytes[i..];
+
+        // Try pattern matching on the remaining slice, returning replacement string and consumed bytes
+        let (replacement, consumed) = match remaining {
+            [b'$', b'u', ..] => {
+                if let Some((unicode_char, pattern_len)) = parse_unicode_escape(remaining) {
+                    result.push(unicode_char);
+                    i += pattern_len;
+                    continue; // Skip the normal handling since we already pushed and incremented
+                } else {
+                    (None, 0)
+                }
+            }
+            [b'.', b'.', ..] => (Some("::"), 2),
+            [b'$', b'L', b'T', b'$', ..] => (Some("<"), 4),
+            [b'$', b'G', b'T', b'$', ..] => (Some(">"), 4),
+            [b'$', b'L', b'P', b'$', ..] => (Some("("), 4),
+            [b'$', b'R', b'P', b'$', ..] => (Some(")"), 4),
+            [b'$', b'C', b'$', ..] => (Some(","), 3),
+            [b'$', b'R', b'F', b'$', ..] => (Some("&"), 4),
+            _ => (None, 0),
+        };
+
+        // Handle the replacement if we found a match
+        if let Some(repl) = replacement {
+            result.push_str(repl);
+            i += consumed;
+        } else {
+            // If no pattern matched, handle as regular character
+            match remaining {
+                [byte, ..] if byte.is_ascii() => {
+                    result.push(*byte as char);
+                    i += 1;
+                }
+                _ => {
+                    // Handle multi-byte UTF-8 characters
+                    let remaining_str = &input[i..];
+                    let ch = remaining_str.chars().next().unwrap();
+                    result.push(ch);
+                    i += ch.len_utf8();
+                }
+            }
+        }
+    }
+
+    result
+}
+
+/// Parse a $u..$ unicode escape sequence and return the character and pattern length
+/// Pattern: $u followed by hex digits followed by $
+/// Examples: $u20$ -> ' ', $u7b$ -> '{', $u3b$ -> ';'
+fn parse_unicode_escape(bytes: &[u8]) -> Option<(char, usize)> {
+    // Must start with $u
+    if bytes.len() < 4 || bytes[0] != b'$' || bytes[1] != b'u' {
+        return None;
+    }
+
+    let mut hex_end = 2;
+    // Find hex digits after $u
+    while hex_end < bytes.len() && bytes[hex_end].is_ascii_hexdigit() {
+        hex_end += 1;
+    }
+
+    // Must end with $ and have at least one hex digit
+    if hex_end == 2 || hex_end >= bytes.len() || bytes[hex_end] != b'$' {
+        return None;
+    }
+
+    // Parse hex digits
+    let hex_str = std::str::from_utf8(&bytes[2..hex_end]).ok()?;
+    let code_point = u32::from_str_radix(hex_str, 16).ok()?;
+
+    // Convert to char if valid Unicode
+    let unicode_char = char::from_u32(code_point)?;
+
+    Some((unicode_char, hex_end + 1)) // +1 to include the closing $
 }
 
 fn parse_file(file: File) -> Result<Hierarchy> {
@@ -211,6 +282,10 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
     match args.len() {
+        1 => {
+            print_usage(&args[0]);
+            std::process::exit(-1);
+        }
         2 => {
             // Default behavior: output to file
             pie_chart::visualize(&args[1])
@@ -274,5 +349,64 @@ mod tests {
             .collect::<Vec<_>>()
         );
         assert_eq!(func, "try_from");
+    }
+
+    #[test]
+    fn test_unescape_name() {
+        // Test individual replacements
+        assert_eq!(unescape_name("$LT$hello$GT$"), "<hello>");
+        assert_eq!(unescape_name("$LP$test$RP$"), "(test)");
+        assert_eq!(unescape_name("core..convert"), "core::convert");
+
+        // Test programmatic $u..$ patterns
+        assert_eq!(unescape_name("$u20$space$u20$"), " space ");
+        assert_eq!(unescape_name("$u7b$hello$u7d$"), "{hello}");
+        assert_eq!(unescape_name("$u5b$test$u5d$"), "[test]");
+        assert_eq!(unescape_name("$u3b$semicolon"), ";semicolon");
+
+        // Test complex example
+        let input = "core..convert..TryFrom$LT$nci..messages..Bitrate$GT$$u20$for$u20$iso14443";
+        let expected = "core::convert::TryFrom<nci::messages::Bitrate> for iso14443";
+        assert_eq!(unescape_name(input), expected);
+
+        // Test no replacements needed
+        assert_eq!(unescape_name("simple_name"), "simple_name");
+
+        // Test empty string
+        assert_eq!(unescape_name(""), "");
+
+        // Test mixed fixed and unicode escapes
+        assert_eq!(unescape_name("$LT$$u20$$GT$"), "< >");
+
+        // Test edge cases for unicode parsing
+        assert_eq!(unescape_name("$u41$"), "A"); // ASCII 'A'
+        assert_eq!(unescape_name("$u0$"), "\0"); // null character
+        assert_eq!(unescape_name("$ux$"), "$ux$"); // invalid hex should be left as-is
+        assert_eq!(unescape_name("$u20"), "$u20"); // missing closing $ should be left as-is
+    }
+
+    #[test]
+    fn test_parse_unicode_escape() {
+        // Test valid patterns
+        assert_eq!(parse_unicode_escape(b"$u20$"), Some((' ', 5)));
+        assert_eq!(parse_unicode_escape(b"$u7b$"), Some(('{', 5)));
+        assert_eq!(parse_unicode_escape(b"$u7d$"), Some(('}', 5)));
+        assert_eq!(parse_unicode_escape(b"$u5b$"), Some(('[', 5)));
+        assert_eq!(parse_unicode_escape(b"$u5d$"), Some((']', 5)));
+        assert_eq!(parse_unicode_escape(b"$u3b$"), Some((';', 5)));
+        assert_eq!(parse_unicode_escape(b"$u41$"), Some(('A', 5)));
+
+        // Test longer hex codes
+        assert_eq!(parse_unicode_escape(b"$u1234$"), Some(('\u{1234}', 7)));
+
+        // Test invalid patterns
+        assert_eq!(parse_unicode_escape(b"$x20$"), None); // wrong prefix
+        assert_eq!(parse_unicode_escape(b"$u20"), None); // missing closing $
+        assert_eq!(parse_unicode_escape(b"$u$"), None); // no hex digits
+        assert_eq!(parse_unicode_escape(b"$ux$"), None); // invalid hex
+        assert_eq!(parse_unicode_escape(b"$u"), None); // too short
+
+        // Test invalid Unicode code points
+        assert_eq!(parse_unicode_escape(b"$u110000$"), None); // beyond Unicode range
     }
 }

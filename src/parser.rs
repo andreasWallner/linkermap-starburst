@@ -1,8 +1,8 @@
 use eyre::Result;
 use nom::{
+    IResult,
     bytes::complete::{tag, take_until, take_while1},
     character::complete::{hex_digit1, space0, space1},
-    IResult,
 };
 use serde::{Deserialize, Serialize};
 
