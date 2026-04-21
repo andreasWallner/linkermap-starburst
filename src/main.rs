@@ -2,7 +2,7 @@ mod error;
 mod pie_chart;
 mod stdout;
 use error::Result;
-use eyre::eyre;
+use eyre::{WrapErr, eyre};
 mod parser;
 use parser::{Addressed, Data, Line, parse};
 
@@ -235,10 +235,10 @@ fn parse_file(file: File) -> Result<Hierarchy> {
     let mut section = "".to_owned();
     let mut result = vec![];
 
-    for l in io::BufReader::new(file).lines() {
+    for (line_idx, l) in io::BufReader::new(file).lines().enumerate() {
         let l = l?;
 
-        match parse(&l)? {
+        match parse(&l).wrap_err_with(|| format!("parse error at line {}", line_idx + 1))? {
             Line::AddressedSymbol(Addressed {
                 entry: Data::Section(s),
                 ..

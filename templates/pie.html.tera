@@ -210,7 +210,13 @@
       .attr("r", inner)
       .attr("fill", "none")
       .attr("pointer-events", "all")
-      .on("click", clicked);
+      .on("click", clicked)
+      .on("mouseenter", (event, d) => {
+        d3.select("#info").selectAll("p").remove();
+        const info_p = d3.select("#info").append("p");
+        info_p.append("b").text("Total size: ");
+        info_p.append("span").text(d.value + " bytes");
+      });
 
     // Handle zoom on click.
     function clicked(event, p) {
