@@ -47,7 +47,7 @@ where
     }
 }
 
-fn generate_plot(section: &Hierarchy, target_filename: &str) -> Result<()> {
+fn generate_plot(section: &Hierarchy, target_filename: &dyn AsRef<std::path::Path>) -> Result<()> {
     // TODO root node name
     let file = File::create(target_filename)?;
     let writer = io::BufWriter::new(file);
@@ -69,11 +69,15 @@ fn generate_plot(section: &Hierarchy, target_filename: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn visualize(filename: &str, exclude_sections: &[String]) -> Result<()> {
+pub fn visualize(
+    outfile: &dyn AsRef<std::path::Path>,
+    filename: &str,
+    exclude_sections: &[String],
+) -> Result<()> {
     let file = File::open(filename)?;
 
     let tree = parse_file(file, exclude_sections)?;
-    generate_plot(&tree, "pie.html")?;
+    generate_plot(&tree, outfile)?;
 
     Ok(())
 }

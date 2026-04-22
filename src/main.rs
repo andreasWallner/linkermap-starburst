@@ -1,3 +1,4 @@
+mod cli;
 mod error;
 mod pie_chart;
 mod stdout;
@@ -293,81 +294,15 @@ fn parse_file(file: File, exclude_sections: &[String]) -> Result<Hierarchy> {
 }
 
 fn main() -> Result<()> {
-    let raw_args: Vec<String> = std::env::args().collect();
-    let program_name = raw_args[0].clone();
+    let args = cli::parse_args()?;
 
-    let mut stdout_mode = false;
-    let mut map_file: Option<String> = None;
-    let mut exclude_sections: Vec<String> = Vec::new();
-
-    let mut i = 1;
-    while i < raw_args.len() {
-        match raw_args[i].as_str() {
-            "--stdout" | "-s" => stdout_mode = true,
-            "--file" | "-f" => stdout_mode = false,
-            "--exclude" | "-x" => {
-                i += 1;
-                if i >= raw_args.len() {
-                    eprintln!("Error: {} requires an argument", raw_args[i - 1]);
-                    print_usage(&program_name);
-                    std::process::exit(-1);
-                }
-                exclude_sections.push(raw_args[i].clone());
-            }
-            arg if arg.starts_with("--exclude=") => {
-                exclude_sections.push(arg["--exclude=".len()..].to_owned());
-            }
-            arg if arg.starts_with('-') => {
-                eprintln!("Error: unknown option {arg}");
-                print_usage(&program_name);
-                std::process::exit(-1);
-            }
-            arg => {
-                if map_file.is_some() {
-                    eprintln!("Error: unexpected argument {arg}");
-                    print_usage(&program_name);
-                    std::process::exit(-1);
-                }
-                map_file = Some(arg.to_owned());
-            }
-        }
-        i += 1;
+    if args.stdout {
+        stdout::visualize_stdout(&args.map_file, &args.exclude)?;
     }
-
-    let Some(map_file) = map_file else {
-        print_usage(&program_name);
-        std::process::exit(-1);
-    };
-
-    if stdout_mode {
-        stdout::visualize_stdout(&map_file, &exclude_sections)
-    } else {
-        pie_chart::visualize(&map_file, &exclude_sections)
+    if let Some(outfile) = args.file {
+        pie_chart::visualize(&outfile, &args.map_file, &args.exclude)?;
     }
-}
-
-fn print_usage(program_name: &str) {
-    eprintln!("Usage: {} [OPTIONS] <map_file>", program_name);
-    eprintln!("Options:");
-    eprintln!("  -s, --stdout              Output tree visualization to stdout");
-    eprintln!("  -f, --file                Output HTML plot to file (default)");
-    eprintln!("  -x, --exclude <pattern>   Exclude symbols whose section matches pattern.");
-    eprintln!("                            Use .bss for exact match, .bss* to match .bss");
-    eprintln!("                            and any section starting with .bss.");
-    eprintln!("                            May be repeated to exclude multiple sections.");
-    eprintln!("Examples:");
-    eprintln!(
-        "  {} memory.map                        # Output HTML to pie.html",
-        program_name
-    );
-    eprintln!(
-        "  {} --stdout memory.map               # Output tree to stdout",
-        program_name
-    );
-    eprintln!(
-        "  {} -x .bss -x .bss* memory.map      # Exclude .bss sections",
-        program_name
-    );
+    Ok(())
 }
 
 #[cfg(test)]
