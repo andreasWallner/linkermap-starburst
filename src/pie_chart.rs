@@ -69,10 +69,10 @@ fn generate_plot(section: &Hierarchy, target_filename: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn visualize(filename: &str) -> Result<()> {
+pub fn visualize(filename: &str, exclude_sections: &[String]) -> Result<()> {
     let file = File::open(filename)?;
 
-    let tree = parse_file(file)?;
+    let tree = parse_file(file, exclude_sections)?;
     generate_plot(&tree, "pie.html")?;
 
     Ok(())
