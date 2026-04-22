@@ -296,11 +296,14 @@ fn parse_file(file: File, exclude_sections: &[String]) -> Result<Hierarchy> {
 fn main() -> Result<()> {
     let args = cli::parse_args()?;
 
+    let file = File::open(&args.map_file)?;
+    let tree = parse_file(file, &args.exclude)?;
+
     if args.stdout {
-        stdout::visualize_stdout(&args.map_file, &args.exclude)?;
+        stdout::visualize_stdout(&tree);
     }
     if let Some(outfile) = args.file {
-        pie_chart::visualize(&outfile, &args.map_file, &args.exclude)?;
+        pie_chart::visualize(&outfile, &tree)?;
     }
     Ok(())
 }

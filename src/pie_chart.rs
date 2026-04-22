@@ -1,4 +1,4 @@
-use crate::{Hierarchy, Result, parse_file};
+use crate::{Hierarchy, Result};
 use std::{fs::File, io};
 use tera::{Context, Tera};
 
@@ -69,15 +69,6 @@ fn generate_plot(section: &Hierarchy, target_filename: &dyn AsRef<std::path::Pat
     Ok(())
 }
 
-pub fn visualize(
-    outfile: &dyn AsRef<std::path::Path>,
-    filename: &str,
-    exclude_sections: &[String],
-) -> Result<()> {
-    let file = File::open(filename)?;
-
-    let tree = parse_file(file, exclude_sections)?;
-    generate_plot(&tree, outfile)?;
-
-    Ok(())
+pub fn visualize(outfile: &dyn AsRef<std::path::Path>, tree: &Hierarchy) -> Result<()> {
+    generate_plot(tree, outfile)
 }

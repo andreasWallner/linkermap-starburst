@@ -1,5 +1,4 @@
-use crate::{Hierarchy, Result, parse_file};
-use std::fs::File;
+use crate::Hierarchy;
 
 // ANSI color codes
 const GREY: &str = "\x1b[90m";
@@ -7,13 +6,8 @@ const CYAN: &str = "\x1b[96m"; // Light cyan for leaf nodes
 const YELLOW: &str = "\x1b[93m"; // Light yellow for module names
 const RESET: &str = "\x1b[0m";
 
-pub fn visualize_stdout(filename: &str, exclude_sections: &[String]) -> Result<()> {
-    let file = File::open(filename)?;
-
-    let tree = parse_file(file, exclude_sections)?;
-    print_tree(&tree, "", true);
-
-    Ok(())
+pub fn visualize_stdout(tree: &Hierarchy) {
+    print_tree(tree, "", true);
 }
 
 fn format_bytes(bytes: u64) -> String {
