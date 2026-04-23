@@ -222,14 +222,14 @@ mod test {
 
     #[test]
     fn test_headline() {
-        let line = parse(&"     VMA      LMA     Size Align Out     In      Symbol").unwrap();
+        let line = parse("     VMA      LMA     Size Align Out     In      Symbol").unwrap();
         assert_eq!(line, Line::Headline);
     }
 
     #[test]
     fn test_provided_symbol() {
         assert_eq!(
-            parse(&"       0        0        0     1 PROVIDE ( _stext = ORIGIN ( REGION_TEXT ) )")
+            parse("       0        0        0     1 PROVIDE ( _stext = ORIGIN ( REGION_TEXT ) )")
                 .unwrap(),
             Line::ProvidedSymbol {
                 vma: 0,
@@ -239,9 +239,7 @@ mod test {
         );
 
         assert_eq!(
-            parse(
-                &"   10000    10000        0     1         PROVIDE ( __global_pointer$ = . + 0x800 )",
-            ).unwrap(),
+            parse("   10000    10000        0     1         PROVIDE ( __global_pointer$ = . + 0x800 )",).unwrap(),
             Line::ProvidedSymbol {
                 vma: 0x10000,
                 lma: 0x10000,
@@ -250,7 +248,7 @@ mod test {
         );
 
         assert_eq!(
-            parse(&"   10000    10000        0     1         _sdata = .").unwrap(),
+            parse("   10000    10000        0     1         _sdata = .").unwrap(),
             Line::ProvidedSymbol {
                 vma: 0x10000,
                 lma: 0x10000,
@@ -262,7 +260,7 @@ mod test {
     #[test]
     fn test_section() {
         assert_eq!(
-            parse(&"   20000    20000        0     1 .text.dummy").unwrap(),
+            parse("   20000    20000        0     1 .text.dummy").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x20000,
                 lma: 0x20000,
@@ -276,7 +274,7 @@ mod test {
     #[test]
     fn test_absolute() {
         assert_eq!(
-            parse(&"   20000    20000        0     1         . = ABSOLUTE ( _stext )").unwrap(),
+            parse("   20000    20000        0     1         . = ABSOLUTE ( _stext )").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x20000,
                 lma: 0x20000,
@@ -290,7 +288,7 @@ mod test {
     #[test]
     fn test_relative() {
         assert_eq!(
-            parse(&"   10000    10000        0     1         . += _heap_size").unwrap(),
+            parse("   10000    10000        0     1         . += _heap_size").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x10000,
                 lma: 0x10000,
@@ -305,8 +303,7 @@ mod test {
     fn test_file() {
         assert_eq!(
             parse(
-                &r"   20000    20000       9c     1         C:\work\git\ric-radio\ric-test-fw\target\riscv32imc-unknown-none-elf\release\deps\ric_test_fw-324ec8e9e7d3d14f.ric_test_fw.534aac6062c7601b-cgu.0.rcgu.o:(.init)"
-                    ,
+                r"   20000    20000       9c     1         C:\work\git\ric-radio\ric-test-fw\target\riscv32imc-unknown-none-elf\release\deps\ric_test_fw-324ec8e9e7d3d14f.ric_test_fw.534aac6062c7601b-cgu.0.rcgu.o:(.init)",
             ).unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x20000,
@@ -321,7 +318,7 @@ mod test {
     #[test]
     fn test_symbol() {
         assert_eq!(
-            parse(&"   2009c    2009c       6a     1                 _start_rust").unwrap(),
+            parse("   2009c    2009c       6a     1                 _start_rust").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x2009c,
                 lma: 0x2009c,
@@ -332,7 +329,7 @@ mod test {
         );
 
         assert_eq!(
-            parse(&"   205a8    205a8       30     1                 __INTERRUPTS").unwrap(),
+            parse("   205a8    205a8       30     1                 __INTERRUPTS").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x205a8,
                 lma: 0x205a8,
@@ -346,7 +343,7 @@ mod test {
     #[test]
     fn test_align() {
         assert_eq!(
-            parse(&"   20106    20106        0     4         . = ALIGN ( 4 )").unwrap(),
+            parse("   20106    20106        0     4         . = ALIGN ( 4 )").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x20106,
                 lma: 0x20106,
@@ -360,7 +357,7 @@ mod test {
     #[test]
     fn test_empty() {
         assert_eq!(
-            parse(&"   2046c    2046c        0     1                 ").unwrap(),
+            parse("   2046c    2046c        0     1                 ").unwrap(),
             Line::AddressedSymbol(Addressed {
                 vma: 0x2046c,
                 lma: 0x2046c,

@@ -60,7 +60,7 @@ fn print_tree(hierarchy: &Hierarchy, prefix: &str, is_last: bool) {
     // Print symbols (if any) - sorted by size
     if !hierarchy.symbols.is_empty() {
         let mut symbols = hierarchy.symbols.clone();
-        symbols.sort_by(|a, b| b.size.cmp(&a.size));
+        symbols.sort_by_key(|symbol| std::cmp::Reverse(symbol.size));
 
         for (i, symbol) in symbols.iter().enumerate() {
             let is_last_symbol = i == symbols.len() - 1;
