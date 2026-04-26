@@ -78,60 +78,102 @@ pub fn find_closing_bracket(text: &str, start: usize) -> Option<usize> {
     None
 }
 
-pub fn split_name(n: &str) -> Result<(Vec<String>, String)> {
-    // Check if we have an impl block anywhere in the path
-    if let Some(impl_start) = n.find("_<") {
-        // Find the matching closing bracket for the impl block
-        let closing_index = find_closing_bracket(n, impl_start + 1)
-            .ok_or_else(|| eyre!("Name with unexpected shape, no closing: {n}"))?;
+/// Split name of trait impls
+///
+/// Example: _<nci::messages::common::ParameterId as num_enum::TryFromPrimitive>::try_from_primitive::h86bf34f9546266ff
+fn split_pure_trait_impl(n: &str) -> Result<(Vec<String>, String)> {
+    assert!(
+        n.starts_with("_<") && n.contains(" as "),
+        "Invalid input for split_trait_impl: {n}"
+    );
 
-        // Split the path before the impl block
-        let before_impl = &n[..impl_start];
-        let impl_block = &n[impl_start..=closing_index];
-        let after_impl = &n[closing_index + 1..];
+    let closing_idx = find_closing_bracket(n, 1)
+        .ok_or_else(|| eyre!("Name with unexpected shape, no closing: {n}"))?;
+    let inner = &n[2..closing_idx];
+    let after = &n[closing_idx + 1..];
 
-        // Parse the parts before the impl block
-        let mut module_parts: Vec<String> = if before_impl.is_empty() {
-            Vec::new()
-        } else {
-            before_impl
-                .trim_end_matches("::")
-                .split("::")
-                .map(|s| s.to_owned())
-                .collect()
-        };
+    let Some((type_, _trait)) = inner.split_once(" as ") else {
+        return Err(eyre!("Name with unexpected shape, no 'as' part: {n}"));
+    };
 
-        // Add the entire impl block as a single module component
-        module_parts.push(impl_block.to_owned());
+    let type_parts = type_.split("::").map(|s| s.to_owned()).collect();
 
-        // Parse the parts after the impl block to get the function name
-        let after_parts = after_impl
-            .trim_start_matches("::")
-            .split("::")
-            .collect::<Vec<_>>();
-        let function_name = if after_parts.len() >= 2 {
-            // Usually the pattern is ::function_name::hash, so take the first part after ::
-            after_parts[0].to_owned()
-        } else if !after_parts.is_empty() {
-            after_parts[0].to_owned()
-        } else {
-            "unknown".to_owned()
-        };
+    // Usually the pattern is ::function_name::hash, so take the first part after ::
+    let func_name = match after
+        .trim_start_matches("::")
+        .split("::")
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [func, _hash] => func.to_owned(),
+        _ => return Err(eyre!("Name with unexpected function part: {n}")),
+    };
 
-        Ok((module_parts, function_name))
+    Ok((type_parts, func_name.to_owned()))
+}
+
+/// Split name of generic trait impls
+///
+/// Example: nci::messages::common::_<impl core::convert::TryFrom<nci::messages::common::Bitrate> for iso14443::Bitrate>::try_from::hddb4e9709a7a10d4
+fn split_generic_trait_impl(n: &str) -> Result<(Vec<String>, String)> {
+    assert!(
+        n.contains("_<impl ") && n.contains(" for "),
+        "Invalid input for split_generic_trait_impl: {n}"
+    );
+
+    let impl_start = n.find("_<impl ").unwrap();
+    let closing_idx = find_closing_bracket(n, impl_start + 1)
+        .ok_or_else(|| eyre!("Name with unexpected shape, no closing: {n}"))?;
+    let before = &n[..impl_start];
+    let inner = &n[impl_start + 6..closing_idx]; // Skip "_<impl "
+    let after = &n[closing_idx + 1..];
+
+    let module = before
+        .trim_end_matches("::")
+        .split("::")
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_owned())
+        .collect();
+
+    let Some((trait_, type_)) = inner.split_once(" for ") else {
+        return Err(eyre!("Name with unexpected shape, no 'for' part: {n}"));
+    };
+    // Usually the pattern is ::function_name::hash, so take the first part after ::
+    let func_name = match after
+        .trim_start_matches("::")
+        .split("::")
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [func, _hash] => func.to_owned(),
+        _ => return Err(eyre!("Name with unexpected shape, no function part: {n}")),
+    };
+
+    Ok((module, format!("{trait_}::{func_name} for {type_}")))
+}
+
+/// Split normal symbol names, which are just module paths and function names
+///
+/// Example: nci::comm::nci_comm::NciComm<T,D,C>::run::hf2c210bafa76e014
+fn split_normal_name(n: &str) -> Result<(Vec<String>, String)> {
+    let parts = n.split("::").collect::<Vec<_>>();
+    Ok(if let [module @ .., name, _hash] = &parts[..] {
+        (
+            module.iter().map(|&s| s.to_owned()).collect(),
+            (*name).to_owned(),
+        )
     } else {
-        // normal symbol
-        // e.g. nci::comm::packets::Packetizer::get_mut::panic_cold_explicit::h84576c2c34ef900f
+        (Vec::new(), n.to_owned())
+    })
+}
 
-        let parts = n.split("::").collect::<Vec<_>>();
-        Ok(if let [module @ .., name, _hash] = &parts[..] {
-            (
-                module.iter().map(|&s| s.to_owned()).collect(),
-                (*name).to_owned(),
-            )
-        } else {
-            (Vec::new(), n.to_owned())
-        })
+pub fn split_name(n: &str) -> Result<(Vec<String>, String)> {
+    if n.contains("_<impl") && n.contains(" for ") {
+        split_generic_trait_impl(n)
+    } else if n.starts_with("_<") && n.contains(" as ") {
+        split_pure_trait_impl(n)
+    } else {
+        split_normal_name(n)
     }
 }
 
@@ -265,6 +307,7 @@ pub fn parse_file(file: File, exclude_sections: &[String]) -> Result<Hierarchy> 
                     continue;
                 }
                 let (module, name) = split_name(&unescape_name(id))?;
+                println!("{} -> {module:?} -- {name:?}", unescape_name(id));
                 let symbol = Symbol {
                     vma,
                     lma,
@@ -294,6 +337,8 @@ pub fn parse_file(file: File, exclude_sections: &[String]) -> Result<Hierarchy> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert2::assert;
+
     #[test]
     fn test_matches_section_pattern() {
         // Exact match
@@ -313,22 +358,30 @@ mod tests {
     }
 
     #[test]
-    fn test_split_name_unescape() {
-        // test adding parsed "   38c58    38c58       6e     1                 nci::messages::common::_$LT$impl$u20$core..convert..TryFrom$LT$nci..messages..common..Bitrate$GT$$u20$for$u20$iso14443..Bitrate$GT$::try_from::hddb4e9709a7a10d4"
-        let name = "nci::messages::common::_$LT$impl$u20$core..convert..TryFrom$LT$nci..messages..common..Bitrate$GT$$u20$for$u20$iso14443..Bitrate$GT$::try_from::hddb4e9709a7a10d4".to_owned();
-        let (modules, func) = split_name(&unescape_name(&name)).unwrap();
+    fn test_split_name_generic_impl() {
+        let name = "nci::messages::common::_<impl core::convert::TryFrom<nci::messages::common::Bitrate> for iso14443::Bitrate>::try_from::hddb4e9709a7a10d4";
+        let (modules, func) = split_name(&name).unwrap();
+        assert!(modules == ["nci", "messages", "common",]);
         assert_eq!(
-            modules,
-            [
-                "nci",
-                "messages",
-                "common",
-                "_<impl core::convert::TryFrom<nci::messages::common::Bitrate> for iso14443::Bitrate>"
-            ]
-            .iter().map(|s| s.to_string())
-            .collect::<Vec<_>>()
+            func,
+            "core::convert::TryFrom<nci::messages::common::Bitrate>::try_from for iso14443::Bitrate"
         );
-        assert_eq!(func, "try_from");
+    }
+
+    #[test]
+    fn test_split_name_pure_impl() {
+        let name = "_<nci::messages::common::ParameterId as num_enum::TryFromPrimitive>::try_from_primitive::h86bf34f9546266ff";
+        let (modules, func) = split_name(name).unwrap();
+        assert!(modules == ["nci", "messages", "common", "ParameterId"]);
+        assert!(func == "try_from_primitive");
+    }
+
+    #[test]
+    fn test_split_name_normal() {
+        let name = "nci::comm::nci_comm::NciComm<T,D,C>::run::hf2c210bafa76e014";
+        let (modules, func) = split_name(name).unwrap();
+        assert!(modules == ["nci", "comm", "nci_comm", "NciComm<T,D,C>"]);
+        assert!(func == "run");
     }
 
     #[test]
