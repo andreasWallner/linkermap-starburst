@@ -57,6 +57,9 @@ fn print_tree(hierarchy: &Hierarchy, prefix: &str, is_last: bool) {
         print_tree(child, &new_prefix, is_last_child);
     }
 
+    let mut symbols: Vec<&_> = hierarchy.symbols.iter().collect();
+    symbols.sort_by_key(|s| &s.name);
+
     // Print symbols (if any) - sorted by size
     if !hierarchy.symbols.is_empty() {
         let mut symbols = hierarchy.symbols.clone();
@@ -80,7 +83,7 @@ fn print_tree(hierarchy: &Hierarchy, prefix: &str, is_last: bool) {
             let formatted_size = format_bytes(symbol.size);
             println!(
                 "{}{}{}{} {}({} bytes){}{}",
-                new_prefix, connector, CYAN, symbol.name, GREY, formatted_size, section_info, RESET
+                new_prefix, connector, CYAN, symbol.name, GREY, formatted_size, section_info, RESET,
             );
         }
     }
