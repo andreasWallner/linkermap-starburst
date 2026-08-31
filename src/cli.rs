@@ -15,6 +15,9 @@ pub struct Cli {
     /// The linker map file to parse
     pub map_file: String,
 
+    /// Debug info file to parse for inliner info
+    pub debug_file: Option<String>,
+
     /// Output tree visualization to stdout (default true, unless -f is given).
     /// Both -s and -f can be given to output both to stdout and file.
     #[arg(short = 's', long)]
@@ -22,7 +25,7 @@ pub struct Cli {
 
     /// Output HTML to this file
     #[arg(short = 'f', long, value_name = "FILE")]
-    pub file: Option<PathBuf>,
+    pub html: Option<PathBuf>,
 
     /// Exclude symbols whose section matches pattern (exact or prefix with *).
     /// May be repeated to exclude multiple sections.
@@ -42,8 +45,8 @@ pub fn parse_args() -> Result<Args> {
 
     Ok(Args {
         map_file: cli.map_file,
-        stdout: cli.stdout || cli.file.is_none(),
-        file: cli.file,
+        stdout: cli.stdout || cli.html.is_none(),
+        html: cli.html,
         exclude: cli.exclude,
     })
 }

@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     if args.stdout {
         stdout::visualize_stdout(&tree);
     }
-    if let Some(outfile) = args.file {
+    if let Some(outfile) = args.html {
         pie_chart::visualize(&outfile, &tree)?;
     }
     Ok(())
