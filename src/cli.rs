@@ -36,7 +36,7 @@ pub struct Cli {
 pub struct Args {
     pub map_file: String,
     pub stdout: bool,
-    pub file: Option<PathBuf>,
+    pub html: Option<PathBuf>,
     pub exclude: Vec<String>,
 }
 

@@ -1,0 +1,200 @@
+Unit at <.debug_info+0x0>
+SKIP cortex_m::register::primask::read  cortex_m::register::primask::read
+SKIP cortex_m::critical_section::single_core_critical_section::{impl#0}::acquire  <cortex_m::critical_section::single_core_critical_section::SingleCoreCriticalSection as critical_section::Impl>::acquire
+SKIP cortex_m::critical_section::single_core_critical_section::{impl#0}::release  <cortex_m::critical_section::single_core_critical_section::SingleCoreCriticalSection as critical_section::Impl>::release
+cortex_m::critical_section::single_core_critical_section::{impl#0}::_critical_section_1_0_acquire  ---
+   addr: 00000000, size: 001a
+   DW_AT_low_pc: Addr(0)
+   DW_AT_high_pc: Udata(26)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_name: DebugStrRef(DebugStrOffset(23110)) '_critical_section_1_0_acquire'
+   DW_AT_decl_file: FileIndex(2)
+   DW_AT_decl_line: Udata(300)
+   DW_AT_type: UnitRef(UnitOffset(465))
+   DW_AT_external: Flag(true)
+      [5] acquire - <cortex_m::critical_section::single_core_critical_section::SingleCoreCriticalSection as critical_section::Impl>::acquire
+      addr: 00000000, size: 0012
+
+      [6] read - cortex_m::register::primask::read
+      addr: 00000000, size: 000e
+
+      [7] disable - cortex_m::interrupt::disable
+      addr: 00000000, size: 0004
+
+cortex_m::critical_section::single_core_critical_section::{impl#0}::_critical_section_1_0_release  ---
+   addr: 00000000, size: 000e
+   DW_AT_low_pc: Addr(0)
+   DW_AT_high_pc: Udata(14)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_name: DebugStrRef(DebugStrOffset(5635)) '_critical_section_1_0_release'
+   DW_AT_decl_file: FileIndex(2)
+   DW_AT_decl_line: Udata(304)
+   DW_AT_external: Flag(true)
+      [5] release - <cortex_m::critical_section::single_core_critical_section::SingleCoreCriticalSection as critical_section::Impl>::release
+      addr: 00000000, size: 0008
+
+      [6] enable - cortex_m::interrupt::enable
+      addr: 00000000, size: 0004
+
+SKIP cortex_m::interrupt::disable  cortex_m::interrupt::disable
+SKIP cortex_m::interrupt::enable  cortex_m::interrupt::enable
+Unit at <.debug_info+0x1e0>
+cortex_m_rt::{impl#1}::fmt::DefaultHandler_  ---
+   addr: 10001254, size: 0006
+   DW_AT_low_pc: Addr(268440148)
+   DW_AT_high_pc: Udata(6)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_name: DebugStrRef(DebugStrOffset(27426)) 'DefaultHandler_'
+   DW_AT_decl_file: FileIndex(1)
+   DW_AT_decl_line: Udata(1110)
+   DW_AT_external: Flag(true)
+   DW_AT_noreturn: Flag(true)
+cortex_m_rt::{impl#1}::fmt::DefaultPreInit  ---
+   addr: 00000000, size: 0006
+   DW_AT_low_pc: Addr(0)
+   DW_AT_high_pc: Udata(6)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_name: DebugStrRef(DebugStrOffset(16368)) 'DefaultPreInit'
+   DW_AT_decl_file: FileIndex(1)
+   DW_AT_decl_line: Udata(1117)
+   DW_AT_external: Flag(true)
+cortex_m_rt::{impl#1}::fmt::HardFault_  ---
+   addr: 1000125e, size: 0006
+   DW_AT_low_pc: Addr(268440158)
+   DW_AT_high_pc: Udata(6)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_name: DebugStrRef(DebugStrOffset(2940)) 'HardFault_'
+   DW_AT_decl_file: FileIndex(1)
+   DW_AT_decl_line: Udata(1103)
+   DW_AT_external: Flag(true)
+   DW_AT_noreturn: Flag(true)
+Unit at <.debug_info+0x356>
+Unit at <.debug_info+0x3b7>
+Unit at <.debug_info+0x421>
+xmc1200::__cortex_m_rt_main  xmc1200::__cortex_m_rt_main
+   addr: 10001128, size: 0008
+   DW_AT_low_pc: Addr(268439848)
+   DW_AT_high_pc: Udata(8)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_linkage_name: DebugStrRef(DebugStrOffset(18407)) '_RNvCsgAPbTcwAsCu_7xmc120018___cortex_m_rt_main'
+   DW_AT_name: DebugStrRef(DebugStrOffset(21689)) '__cortex_m_rt_main'
+   DW_AT_decl_file: FileIndex(1)
+   DW_AT_decl_line: Udata(94)
+   DW_AT_noreturn: Flag(true)
+SKIP xmc1200::blub::{closure#0}  xmc1200::blub::{closure#0} [in xmc1200]
+SKIP xmc1200::blub::{closure#1}  xmc1200::blub::{closure#1} [in xmc1200]
+SKIP xmc1200::blub::{closure#2}  xmc1200::blub::{closure#2} [in xmc1200]
+SKIP xmc1200::blub::enable_usic  xmc1200::enable_usic
+SKIP xmc1200::enable_usic::{closure#2}  xmc1200::enable_usic::{closure#2} [in xmc1200]
+SKIP xmc1200::set_normal_baudrate::set_normal_baudrate  xmc1200::set_normal_baudrate
+SKIP xmc1200::set_normal_baudrate::transmit  xmc1200::transmit
+SKIP xmc1200::transmit::wait  xmc1200::wait
+xmc1200::transmit::blub  xmc1200::blub
+   addr: 10001130, size: 011c
+   DW_AT_low_pc: Addr(268439856)
+   DW_AT_high_pc: Udata(284)
+   DW_AT_frame_base: Exprloc(Expression(RelocationReader(EndianSlice(Little, [0x57]))))
+   DW_AT_linkage_name: DebugStrRef(DebugStrOffset(23729)) '_RNvCsgAPbTcwAsCu_7xmc12004blub'
+   DW_AT_name: DebugStrRef(DebugStrOffset(15650)) 'blub'
+   DW_AT_decl_file: FileIndex(1)
+   DW_AT_decl_line: Udata(99)
+   DW_AT_noreturn: Flag(true)
+      [3] --- - ---
+      addr: 10001138, size: 0012
+
+      [4] --- - ---
+      addr: 10001138, size: 0004
+
+      [5] read_volatile<u32> - <*mut u32>::read_volatile [in xmc1200]
+      addr: 10001138, size: 0004
+
+      [6] read_volatile<u32> - core::ptr::read_volatile::<u32> [in xmc1200]
+      addr: 10001138, size: 0004
+
+      [5] {closure#0} - xmc1200::blub::{closure#0} [in xmc1200]
+      addr: 1000113c, size: 0006
+
+      [6] --- - ---
+      addr: 1000113c, size: 0004
+
+      [11] bitand_assign - <u32 as core::ops::bit::BitAndAssign>::bitand_assign
+      addr: 1000113c, size: 0004
+
+      [6] --- - ---
+      addr: 10001140, size: 0002
+
+      [11] bitor_assign - <u32 as core::ops::bit::BitOrAssign>::bitor_assign
+      addr: 10001140, size: 0002
+
+      [6] --- - ---
+      addr: 10001142, size: 0008
+
+      [7] write_volatile<u32> - <*mut u32>::write_volatile [in xmc1200]
+      addr: 10001142, size: 0008
+
+      [8] write_volatile<u32> - core::ptr::write_volatile::<u32> [in xmc1200]
+      addr: 10001142, size: 0008
+
+      [3] --- - ---
+      addr: 1000114a, size: 0008
+
+      [4] --- - ---
+      addr: 1000114a, size: 0002
+
+      [5] read_volatile<u32> - <*mut u32>::read_volatile [in xmc1200]
+      addr: 1000114a, size: 0002
+
+      [6] read_volatile<u32> - core::ptr::read_volatile::<u32> [in xmc1200]
+      addr: 1000114a, size: 0002
+
+      [5] {closure#1} - xmc1200::blub::{closure#1} [in xmc1200]
+      addr: 1000114c, size: 0002
+
+      [6] --- - ---
+      addr: 1000114c, size: 0002
+
+      [10] bitand_assign - <u32 as core::ops::bit::BitAndAssign>::bitand_assign
+      addr: 1000114c, size: 0002
+
+      [6] --- - ---
+      addr: 1000114e, size: 0004
+
+      [7] write_volatile<u32> - <*mut u32>::write_volatile [in xmc1200]
+      addr: 1000114e, size: 0004
+
+      [8] write_volatile<u32> - core::ptr::write_volatile::<u32> [in xmc1200]
+      addr: 1000114e, size: 0004
+
+      [3] --- - ---
+      addr: 10001152, size: 0010
+
+      [4] --- - ---
+      addr: 10001152, size: 0008
+
+      [5] read_volatile<u32> - <*mut u32>::read_volatile [in xmc1200]
+      addr: 10001152, size: 0008
+
+      [6] read_volatile<u32> - core::ptr::read_volatile::<u32> [in xmc1200]
+      addr: 10001152, size: 0008
+
+      [5] {closure#2} - xmc1200::blub::{closure#2} [in xmc1200]
+      addr: 1000115a, size: 0002
+
+      [6] --- - ---
+      addr: 1000115a, size: 0002
+
+      [11] bitand_assign - <u32 as core::ops::bit::BitAndAssign>::bitand_assign
+      addr: 1000115a, size: 0002
+
+      [6] --- - ---
+      addr: 1000115c, size: 0006
+
+      [7] write_volatile<u32> - <*mut u32>::write_volatile [in xmc1200]
+      addr: 1000115c, size: 0006
+
+      [8] write_volatile<u32> - core::ptr::write_volatile::<u32> [in xmc1200]
+      addr: 1000115c, size: 0006
+
+      [4] enable_usic - xmc1200::enable_usic
+      addr: 10001162, size: 006a
+
